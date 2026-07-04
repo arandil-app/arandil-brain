@@ -10,7 +10,7 @@ volatile: true
 # Arandil — Estado Actual
 
 > **Actualizado:** 2026-07-04  
-> **Sesión:** FASE 0 + FASE 1 + FASE 2 completas  
+> **Sesión:** FASE 0 + FASE 1 + FASE 2 + FASE 3 completas  
 > **Última actualización por:** Claude Code
 
 ---
@@ -19,11 +19,11 @@ volatile: true
 
 | Dimensión | Estado | Detalles |
 |-----------|--------|----------|
-| **Fase actual** | ✅ FASE 2 completada | API base funcional, migraciones aplicadas |
+| **Fase actual** | ✅ FASE 3 completada | Mobile scaffold funcional con auth |
 | **Brain** | ✅ Completo | Pusheado a GitHub |
-| **Monorepo** | ✅ Completo | Pusheado a GitHub (commit 8f18cf1) |
+| **Monorepo** | ✅ Completo | Pusheado a GitHub (commit 6932fce) |
 | **API** | ✅ Funcional | GET /health OK, tests 2/2 pasando |
-| **Mobile** | ⚪ Pendiente | FASE 3 (siguiente) |
+| **Mobile** | ✅ Funcional | Login/registro OK, TypeScript 0 errores |
 | **Tests** | ✅ API tests OK | 2/2 pasando (health route) |
 | **Deploy** | ⚪ Pendiente | FASE 7 |
 
@@ -128,25 +128,91 @@ volatile: true
 - Sin workers BullMQ por ahora
 - Sin cron jobs por ahora
 
+### 2026-07-04 — FASE 3: Mobile Scaffold Funcional
+
+**Mobile (`apps/mobile/`):**
+- ✅ app.json: Expo config completo (scheme: arandil, owner: arandil-app)
+- ✅ package.json: dependencias completas (Expo 52, Supabase, React Query, Zustand)
+- ✅ tsconfig.json, metro.config.js, expo-env.d.ts
+- ✅ assets placeholders creados
+
+**Auth & Navigation (Expo Router):**
+- ✅ src/app/_layout.tsx: root layout con QueryClientProvider
+- ✅ src/app/index.tsx: auth gate con redirección automática según sesión
+- ✅ src/app/(auth)/sign-in.tsx: login con Supabase (email/password)
+- ✅ src/app/(auth)/sign-up.tsx: registro con Supabase
+- ✅ src/lib/supabase.ts: cliente Supabase para React Native con AsyncStorage
+
+**Dashboard autenticado (tabs):**
+- ✅ src/app/(tabs)/_layout.tsx: bottom tabs navigation (Inicio, Progreso, Perfil)
+- ✅ src/app/(tabs)/index.tsx: dashboard con racha placeholder, stats, CTA
+- ✅ src/app/(tabs)/progress.tsx: progreso placeholder
+- ✅ src/app/(tabs)/profile.tsx: perfil con logout funcional
+
+**State management:**
+- ✅ src/stores/user.store.ts: Zustand con AsyncStorage persistence
+  - user: {id, email, name, subjectFocus, learningGoal}
+  - isLoading, setUser, setLoading, logout
+
+**Verificación:**
+- ✅ pnpm install (sin errores)
+- ✅ pnpm lint (TypeScript 0 errores)
+- ✅ Estructura completa: 10 archivos TypeScript + configs
+
+**Git:**
+- ✅ Commit 6932fce
+- ✅ Push exitoso
+
+**Features funcionales:**
+- ✅ Login/registro con Supabase
+- ✅ Persistencia de sesión (AsyncStorage)
+- ✅ Rutas protegidas (auth gate en index)
+- ✅ Dashboard autenticado con racha placeholder
+- ✅ Logout funcional
+- ✅ Navegación tabs funcional
+
+**Reutilizado de Arandur:**
+- Estructura Expo Router
+- Supabase auth pattern
+- Zustand stores pattern
+- UI colors & styles
+
+**Adaptado para Arandil:**
+- Sin universidad/carrera
+- Sin exam_target
+- Dashboard con racha de estudio (no días hasta examen)
+- subject_focus en user store (matemáticas)
+- Sin onboarding de admisión
+
+**Pendiente para FASE 4:**
+- Onboarding matemáticas real
+- Integración packages/core (FSRS)
+- Endpoints de sesiones en API
+- Conexión dashboard ↔ API
+
 ---
 
 ## Pendientes Inmediatos
 
-### FASE 3 — Mobile Scaffold (siguiente)
-1. [ ] Copiar estructura base mobile de Arandur
-2. [ ] Adaptar onboarding (eliminar universidad/carrera)
-3. [ ] Crear onboarding matemáticas (nivel + materia inicial)
-4. [ ] Adaptar dashboard (racha de estudio, NO "días hasta examen")
-5. [ ] Conectar mobile con API local
-6. [ ] Verificar login/registro funciona
-7. [ ] Commit + push
-
-### FASE 4 — FSRS + Core Algorithms
+### FASE 4 — FSRS + Core Algorithms (siguiente)
 1. [ ] Copiar packages/core/ de Arandur
 2. [ ] Adaptar types (eliminar exam_target, universidad_objetivo)
-3. [ ] Endpoints FSRS en API (POST /sessions, PATCH /fsrs)
-4. [ ] Tests FSRS
-5. [ ] Commit + push
+3. [ ] Agregar subject_focus, learningGoal a types
+4. [ ] Endpoints FSRS en API:
+   - POST /sessions (crear sesión)
+   - PATCH /fsrs (actualizar cards tras respuesta)
+   - GET /sessions/history
+5. [ ] Tests FSRS (algoritmo + endpoints)
+6. [ ] Conectar mobile con endpoints FSRS
+7. [ ] Commit + push
+
+### FASE 5 — Onboarding Matemáticas
+1. [ ] Crear onboarding flow en mobile
+2. [ ] Pantalla 1: Nivel (secundaria/universitario)
+3. [ ] Pantalla 2: Área de enfoque (álgebra/geometría/cálculo)
+4. [ ] Pantalla 3: Objetivo de aprendizaje
+5. [ ] Guardar en user profile (subject_focus, learningGoal)
+6. [ ] Redirigir a dashboard tras completar
 
 ---
 
@@ -175,60 +241,54 @@ volatile: true
 **Monorepo (arandil):**
 - `b2a8c39` — feat: initial monorepo setup — base structure (2026-07-04)
 - `8f18cf1` — feat(FASE-2): API base funcional — Express + Auth + Migraciones (2026-07-04)
+- `6932fce` — feat(FASE-3): Mobile scaffold funcional — Expo + Auth + Dashboard (2026-07-04)
 
 ---
 
 ## Métricas
 
-| Métrica | Valor | Target FASE 0+1+2 |
-|---------|-------|-------------------|
+| Métrica | Valor | Target FASE 0+1+2+3 |
+|---------|-------|---------------------|
 | Archivos obligatorios brain | 11/11 ✅ | 11/11 |
 | Frontmatter OKF válido | 11/11 (100%) ✅ | 100% |
 | Repos git inicializados | 2/2 ✅ | 2/2 |
-| Commits totales | 5 ✅ | 2+ |
+| Commits totales | 6 ✅ | 2+ |
 | Repos pusheados a GitHub | 2/2 ✅ | 2/2 |
-| Monorepo workspaces | 3 (mobile, api, core) | 3 |
+| Monorepo workspaces | 3 (mobile, api, core) ✅ | 3 |
 | Docker services | 2 (PostgreSQL, Redis) ✅ | 2 |
 | API routes | 1 (GET /health) ✅ | 1+ |
 | DB migrations | 2 (001_init, 002_subscriptions) ✅ | 2+ |
 | Tests pasando | 2/2 (health route) ✅ | 1+ |
 | DB tablas | 8 (users, cards, sessions, questions, etc) ✅ | 5+ |
+| Mobile screens | 6 (sign-in, sign-up, dashboard, progress, profile, index) ✅ | 3+ |
+| Mobile routes (Expo Router) | 2 groups ((auth), (tabs)) ✅ | 2+ |
+| TypeScript errores mobile | 0 ✅ | 0 |
 
 ---
 
 ## Próximos Pasos
 
-### FASE 3 — Mobile Scaffold (siguiente)
-1. Copiar estructura base mobile de Arandur:
-   - `app/` (Expo Router navigation)
-   - `components/` (sin copy específico de admisión)
-   - `stores/` (Zustand: user, session, fsrs, theme)
-   - `services/api.ts` (React Query)
-
-2. Adaptar onboarding:
-   - Eliminar flujo universidad/carrera
-   - Crear flujo nivel (secundaria/universitario) + materia inicial
-
-3. Adaptar dashboard:
-   - Eliminar "días hasta examen"
-   - Agregar "racha de estudio"
-   - Mantener curvas BKT (pero por temas matemáticos)
-
-4. Conectar mobile con API local
-5. Verificar login/registro funciona
-6. Commit + push
-
-### FASE 4 — FSRS + Core Algorithms
+### FASE 4 — FSRS + Core Algorithms (siguiente)
 1. Copiar `packages/core/` de Arandur
 2. Adaptar types (eliminar exam_target, universidad_objetivo)
-3. Endpoints FSRS en API:
+3. Agregar subject_focus, learningGoal a types
+4. Endpoints FSRS en API:
    - POST /sessions (crear sesión)
    - PATCH /fsrs (actualizar cards tras respuesta)
    - GET /sessions/history
-4. Tests FSRS
-5. Conectar mobile con endpoints FSRS
+5. Tests FSRS (algoritmo + endpoints)
+6. Conectar mobile con endpoints FSRS
+7. Commit + push
+
+### FASE 5 — Onboarding Matemáticas
+1. Crear onboarding flow en mobile
+2. Pantalla 1: Nivel (secundaria/universitario)
+3. Pantalla 2: Área de enfoque (álgebra/geometría/cálculo)
+4. Pantalla 3: Objetivo de aprendizaje
+5. Guardar en user profile (subject_focus, learningGoal)
+6. Redirigir a dashboard tras completar
 
 ---
 
 **Última sesión:** 2026-07-04  
-**Próxima sesión:** FASE 3 — Mobile Scaffold (React Native + Expo + Onboarding matemáticas)
+**Próxima sesión:** FASE 4 — FSRS + Core Algorithms
