@@ -10,7 +10,7 @@ volatile: true
 # Arandil — Estado Actual
 
 > **Actualizado:** 2026-07-04  
-> **Sesión:** Bootstrap inicial (FASE 0)  
+> **Sesión:** FASE 0 + FASE 1 completas  
 > **Última actualización por:** Claude Code
 
 ---
@@ -19,12 +19,12 @@ volatile: true
 
 | Dimensión | Estado | Detalles |
 |-----------|--------|----------|
-| **Fase actual** | 🟡 FASE 0 (Bootstrap) | Creando estructura base del proyecto |
-| **Brain** | 🟡 En progreso | Archivos obligatorios creándose |
-| **Monorepo** | ⚪ Pendiente | FASE 1 |
-| **API** | ⚪ Pendiente | FASE 2 |
+| **Fase actual** | ✅ FASE 1 completada | Monorepo base funcional |
+| **Brain** | ✅ Completo | Pusheado a GitHub |
+| **Monorepo** | ✅ Completo | Pusheado a GitHub (commit b2a8c39) |
+| **API** | ⚪ Pendiente | FASE 2 (siguiente) |
 | **Mobile** | ⚪ Pendiente | FASE 3 |
-| **Tests** | ⚪ Pendiente | - |
+| **Tests** | ⚪ Pendiente | FASE 4+ |
 | **Deploy** | ⚪ Pendiente | FASE 7 |
 
 ---
@@ -53,9 +53,29 @@ volatile: true
 
 **Git:**
 - ✅ Brain git init
-- ✅ Primer commit (57d50ae)
-- ✅ Remote configurado (https://github.com/arandil-app/arandil-brain.git)
-- 🔴 Push bloqueado: repo no existe en GitHub (ver bloqueantes)
+- ✅ Commits brain: 57d50ae, 6f7c02d
+- ✅ Remote configurado
+- ✅ Push exitoso a https://github.com/arandil-app/arandil-brain
+
+### 2026-07-04 — FASE 1: Monorepo Base
+
+**Monorepo (`arandil/`):**
+- ✅ Estructura creada: apps/mobile, services/api, packages/core, infra/
+- ✅ Configuración Turborepo copiada y adaptada de Arandur
+- ✅ Docker Compose: PostgreSQL 16 + Redis 7 (adaptado arandil)
+- ✅ package.json root con scripts dev/build/test/lint
+- ✅ pnpm-workspace.yaml configurado
+- ✅ turbo.json con tasks build/dev/test/lint
+- ✅ .gitignore copiado de Arandur
+- ✅ .env.example con todas las vars necesarias
+- ✅ README.md con setup instructions
+- ✅ package.json placeholders para mobile/api/core
+
+**Git:**
+- ✅ Repo inicializado
+- ✅ Primer commit (b2a8c39)
+- ✅ Repo creado en GitHub: https://github.com/arandil-app/arandil
+- ✅ Push exitoso
 
 ---
 
@@ -83,21 +103,8 @@ volatile: true
 
 ## Bloqueantes
 
-### 🔴 Requieren Acción de Rodhan
-1. **GitHub repos no existen:**
-   - `https://github.com/arandil-app/arandil-brain` — brain listo para push (commit 57d50ae)
-   - `https://github.com/arandil-app/arandil` — monorepo (pendiente crear)
-   
-   **Opciones:**
-   - **A)** Crear ambos repos en org `arandil-app` en GitHub
-   - **B)** Crear repos bajo otra org/usuario
-   - **C)** Cambiar remote a repos existentes
-   
-   **Comando para push (cuando repo exista):**
-   ```bash
-   cd /home/rodri/arandil-workspace/arandil-brain
-   git push -u origin main
-   ```
+### 🔴 Requieren Acción Externa
+- Ninguno
 
 ### 🟡 Requieren Decisión de Rodhan
 - Ninguno por ahora
@@ -114,40 +121,58 @@ volatile: true
 
 **Brain (arandil-brain):**
 - `57d50ae` — feat: initial brain setup — OKF structure (2026-07-04)
+- `6f7c02d` — docs: update STATUS after bootstrap completion (2026-07-04)
 
 **Monorepo (arandil):**
-- Ninguno aún (monorepo no creado — pendiente FASE 1)
+- `b2a8c39` — feat: initial monorepo setup — base structure (2026-07-04)
 
 ---
 
 ## Métricas
 
-| Métrica | Valor | Target FASE 0 |
-|---------|-------|---------------|
-| Archivos obligatorios creados | 11/11 ✅ | 11/11 |
+| Métrica | Valor | Target FASE 0+1 |
+|---------|-------|-----------------|
+| Archivos obligatorios brain | 11/11 ✅ | 11/11 |
 | Frontmatter OKF válido | 11/11 (100%) ✅ | 100% |
-| Repos git inicializados | 1/2 | 2/2 |
-| Commits creados | 1 (brain) | 2 |
-| Repos pusheados a GitHub | 0/2 🔴 | 2/2 |
+| Repos git inicializados | 2/2 ✅ | 2/2 |
+| Commits totales | 4 ✅ | 2+ |
+| Repos pusheados a GitHub | 2/2 ✅ | 2/2 |
+| Monorepo workspaces | 3 (mobile, api, core) | 3 |
+| Docker services | 2 (PostgreSQL, Redis) | 2 |
 
 ---
 
 ## Próximos Pasos
 
-1. **Rodhan:** Crear repos en GitHub:
-   - `https://github.com/arandil-app/arandil-brain`
-   - `https://github.com/arandil-app/arandil`
-   
-2. **Tras crear repos:** Push brain (commit 57d50ae listo)
+### FASE 2 — API Base (siguiente)
+1. Copiar estructura base API de Arandur:
+   - `src/index.ts` (servidor Express)
+   - `src/db/client.ts` (pool pg)
+   - `src/middleware/` (auth, rateLimit, errorHandler)
+   - `src/routes/auth.ts` (Supabase login/registro)
 
-3. **FASE 1 — Monorepo Base:**
-   - Crear estructura monorepo (apps/, services/, packages/)
-   - Copiar configuración Turborepo de Arandur
-   - Copiar Docker Compose (PostgreSQL + Redis)
-   - Git init + primer commit monorepo
-   - Push monorepo
+2. Crear migraciones NUEVAS (NO copiar de Arandur):
+   - `001_init.sql` (users, sessions, cards, questions — SIN enums universidades)
+   - `002_subscriptions.sql` (RevenueCat integration)
+
+3. Tests base:
+   - Vitest config
+   - Test health check
+   - Test auth middleware
+
+4. Verificar `pnpm dev` corre sin errores
+
+### FASE 3 — Mobile Scaffold
+- React Native + Expo base
+- Onboarding matemáticas (NO admisión)
+- Dashboard con racha de estudio
+
+### FASE 4 — FSRS + Core Algorithms
+- Copiar `packages/core/` de Arandur
+- Adaptar types (eliminar exam_target, universidad_objetivo)
+- Endpoints FSRS en API
 
 ---
 
 **Última sesión:** 2026-07-04  
-**Próxima sesión:** Completar FASE 0 y comenzar FASE 1
+**Próxima sesión:** FASE 2 — API Base (Express + Auth + Migraciones)
