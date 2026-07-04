@@ -10,7 +10,7 @@ volatile: true
 # Arandil — Estado Actual
 
 > **Actualizado:** 2026-07-04  
-> **Sesión:** FASE 0 + FASE 1 completas  
+> **Sesión:** FASE 0 + FASE 1 + FASE 2 completas  
 > **Última actualización por:** Claude Code
 
 ---
@@ -19,12 +19,12 @@ volatile: true
 
 | Dimensión | Estado | Detalles |
 |-----------|--------|----------|
-| **Fase actual** | ✅ FASE 1 completada | Monorepo base funcional |
+| **Fase actual** | ✅ FASE 2 completada | API base funcional, migraciones aplicadas |
 | **Brain** | ✅ Completo | Pusheado a GitHub |
-| **Monorepo** | ✅ Completo | Pusheado a GitHub (commit b2a8c39) |
-| **API** | ⚪ Pendiente | FASE 2 (siguiente) |
-| **Mobile** | ⚪ Pendiente | FASE 3 |
-| **Tests** | ⚪ Pendiente | FASE 4+ |
+| **Monorepo** | ✅ Completo | Pusheado a GitHub (commit 8f18cf1) |
+| **API** | ✅ Funcional | GET /health OK, tests 2/2 pasando |
+| **Mobile** | ⚪ Pendiente | FASE 3 (siguiente) |
+| **Tests** | ✅ API tests OK | 2/2 pasando (health route) |
 | **Deploy** | ⚪ Pendiente | FASE 7 |
 
 ---
@@ -77,27 +77,76 @@ volatile: true
 - ✅ Repo creado en GitHub: https://github.com/arandil-app/arandil
 - ✅ Push exitoso
 
+### 2026-07-04 — FASE 2: API Base Funcional
+
+**API (`services/api/src/`):**
+- ✅ index.ts: servidor Express con helmet, cors, error handling
+- ✅ lib/env.ts: validación Zod de env vars (19 vars requeridas)
+- ✅ lib/logger.ts: Pino logger con pino-pretty en dev
+- ✅ db/client.ts: Pool pg singleton
+- ✅ middleware/errorHandler.ts: error handler + notFound middleware
+- ✅ middleware/auth.ts: Supabase JWT validation middleware
+- ✅ routes/health.ts: GET /health con DB check
+
+**Migraciones (`db/migrations/`):**
+- ✅ 001_init.sql: users, cards, sessions, questions, session_responses, usage_counters
+  - Schema global sin enums de universidades
+  - `subject_focus` en lugar de `exam_target`
+  - `topic` en questions (algebra, geometry, calculus)
+- ✅ 002_subscriptions.sql: subscriptions + subscription_events (RevenueCat)
+
+**Tests:**
+- ✅ __tests__/health.test.ts: 2 tests pasando (200 OK, 503 error)
+- ✅ vitest.config.ts configurado
+
+**Scripts:**
+- ✅ infra/scripts/db-migrate.sh copiado de Arandur
+
+**Verificación local:**
+- ✅ pnpm install (sin errores)
+- ✅ pnpm test (2/2 tests pasando)
+- ✅ pnpm docker:dev (PostgreSQL + Redis corriendo)
+- ✅ pnpm db:migrate (migraciones aplicadas)
+- ✅ pnpm dev:plain (API corriendo en :3000)
+- ✅ curl /health → status: ok ✅
+
+**Git:**
+- ✅ Commit 8f18cf1
+- ✅ Push exitoso
+
+**Reutilizado de Arandur:**
+- Estructura API (lib, middleware, routes, db)
+- Validación env con Zod
+- Pino logger pattern
+- Pool pg singleton
+- Health check pattern
+
+**Adaptado para Arandil:**
+- Sin enums universidades (UNI, UNMSM, etc)
+- Schema global (subject_focus, topic)
+- Sin PDF upload feature
+- Sin workers BullMQ por ahora
+- Sin cron jobs por ahora
+
 ---
 
 ## Pendientes Inmediatos
 
-### FASE 0 — Completar Bootstrap
-1. [ ] Crear GROWTH.md (placeholder Perplexity-only)
-2. [ ] Crear DESIGN.md (placeholder Perplexity-only)
-3. [ ] Crear INDEX.md con tabla de archivos CURRENT/
-4. [ ] Crear AGENTS-PROTOCOL.md (protocolo Perplexity ↔ Claude Code)
-5. [ ] Crear TROUBLESHOOTING.md (vacío por ahora)
-6. [ ] Crear README.md del brain
-7. [ ] Crear CLAUDE.md en workspace root
-8. [ ] Git init en brain
-9. [ ] Git remote add origin https://github.com/arandil-app/arandil-brain.git
-10. [ ] Git commit + push brain
+### FASE 3 — Mobile Scaffold (siguiente)
+1. [ ] Copiar estructura base mobile de Arandur
+2. [ ] Adaptar onboarding (eliminar universidad/carrera)
+3. [ ] Crear onboarding matemáticas (nivel + materia inicial)
+4. [ ] Adaptar dashboard (racha de estudio, NO "días hasta examen")
+5. [ ] Conectar mobile con API local
+6. [ ] Verificar login/registro funciona
+7. [ ] Commit + push
 
-### FASE 1 — Monorepo Base (después de FASE 0)
-- [ ] Crear estructura monorepo (apps/, services/, packages/)
-- [ ] Copiar configuración Turborepo
-- [ ] Copiar Docker Compose
-- [ ] Git init + push monorepo
+### FASE 4 — FSRS + Core Algorithms
+1. [ ] Copiar packages/core/ de Arandur
+2. [ ] Adaptar types (eliminar exam_target, universidad_objetivo)
+3. [ ] Endpoints FSRS en API (POST /sessions, PATCH /fsrs)
+4. [ ] Tests FSRS
+5. [ ] Commit + push
 
 ---
 
@@ -125,54 +174,61 @@ volatile: true
 
 **Monorepo (arandil):**
 - `b2a8c39` — feat: initial monorepo setup — base structure (2026-07-04)
+- `8f18cf1` — feat(FASE-2): API base funcional — Express + Auth + Migraciones (2026-07-04)
 
 ---
 
 ## Métricas
 
-| Métrica | Valor | Target FASE 0+1 |
-|---------|-------|-----------------|
+| Métrica | Valor | Target FASE 0+1+2 |
+|---------|-------|-------------------|
 | Archivos obligatorios brain | 11/11 ✅ | 11/11 |
 | Frontmatter OKF válido | 11/11 (100%) ✅ | 100% |
 | Repos git inicializados | 2/2 ✅ | 2/2 |
-| Commits totales | 4 ✅ | 2+ |
+| Commits totales | 5 ✅ | 2+ |
 | Repos pusheados a GitHub | 2/2 ✅ | 2/2 |
 | Monorepo workspaces | 3 (mobile, api, core) | 3 |
-| Docker services | 2 (PostgreSQL, Redis) | 2 |
+| Docker services | 2 (PostgreSQL, Redis) ✅ | 2 |
+| API routes | 1 (GET /health) ✅ | 1+ |
+| DB migrations | 2 (001_init, 002_subscriptions) ✅ | 2+ |
+| Tests pasando | 2/2 (health route) ✅ | 1+ |
+| DB tablas | 8 (users, cards, sessions, questions, etc) ✅ | 5+ |
 
 ---
 
 ## Próximos Pasos
 
-### FASE 2 — API Base (siguiente)
-1. Copiar estructura base API de Arandur:
-   - `src/index.ts` (servidor Express)
-   - `src/db/client.ts` (pool pg)
-   - `src/middleware/` (auth, rateLimit, errorHandler)
-   - `src/routes/auth.ts` (Supabase login/registro)
+### FASE 3 — Mobile Scaffold (siguiente)
+1. Copiar estructura base mobile de Arandur:
+   - `app/` (Expo Router navigation)
+   - `components/` (sin copy específico de admisión)
+   - `stores/` (Zustand: user, session, fsrs, theme)
+   - `services/api.ts` (React Query)
 
-2. Crear migraciones NUEVAS (NO copiar de Arandur):
-   - `001_init.sql` (users, sessions, cards, questions — SIN enums universidades)
-   - `002_subscriptions.sql` (RevenueCat integration)
+2. Adaptar onboarding:
+   - Eliminar flujo universidad/carrera
+   - Crear flujo nivel (secundaria/universitario) + materia inicial
 
-3. Tests base:
-   - Vitest config
-   - Test health check
-   - Test auth middleware
+3. Adaptar dashboard:
+   - Eliminar "días hasta examen"
+   - Agregar "racha de estudio"
+   - Mantener curvas BKT (pero por temas matemáticos)
 
-4. Verificar `pnpm dev` corre sin errores
-
-### FASE 3 — Mobile Scaffold
-- React Native + Expo base
-- Onboarding matemáticas (NO admisión)
-- Dashboard con racha de estudio
+4. Conectar mobile con API local
+5. Verificar login/registro funciona
+6. Commit + push
 
 ### FASE 4 — FSRS + Core Algorithms
-- Copiar `packages/core/` de Arandur
-- Adaptar types (eliminar exam_target, universidad_objetivo)
-- Endpoints FSRS en API
+1. Copiar `packages/core/` de Arandur
+2. Adaptar types (eliminar exam_target, universidad_objetivo)
+3. Endpoints FSRS en API:
+   - POST /sessions (crear sesión)
+   - PATCH /fsrs (actualizar cards tras respuesta)
+   - GET /sessions/history
+4. Tests FSRS
+5. Conectar mobile con endpoints FSRS
 
 ---
 
 **Última sesión:** 2026-07-04  
-**Próxima sesión:** FASE 2 — API Base (Express + Auth + Migraciones)
+**Próxima sesión:** FASE 3 — Mobile Scaffold (React Native + Expo + Onboarding matemáticas)
