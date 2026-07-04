@@ -10,7 +10,7 @@ volatile: true
 # Arandil — Estado Actual
 
 > **Actualizado:** 2026-07-04  
-> **Sesión:** FASE 0 + FASE 1 + FASE 2 + FASE 3 completas  
+> **Sesión:** FASE 0 + FASE 1 + FASE 2 + FASE 3 + FASE 4 completas  
 > **Última actualización por:** Claude Code
 
 ---
@@ -19,12 +19,13 @@ volatile: true
 
 | Dimensión | Estado | Detalles |
 |-----------|--------|----------|
-| **Fase actual** | ✅ FASE 3 completada | Mobile scaffold funcional con auth |
+| **Fase actual** | ✅ FASE 4 completada | Práctica matemática end-to-end funcional |
 | **Brain** | ✅ Completo | Pusheado a GitHub |
-| **Monorepo** | ✅ Completo | Pusheado a GitHub (commit 6932fce) |
-| **API** | ✅ Funcional | GET /health OK, tests 2/2 pasando |
-| **Mobile** | ✅ Funcional | Login/registro OK, TypeScript 0 errores |
-| **Tests** | ✅ API tests OK | 2/2 pasando (health route) |
+| **Monorepo** | ✅ Completo | Pusheado a GitHub (commit cf44eda) |
+| **API** | ✅ Funcional | 4 routes (health + 3 practice) |
+| **Mobile** | ✅ Funcional | Práctica + login/registro OK |
+| **FSRS** | ✅ Integrado | ts-fsrs v5 funcionando |
+| **Tests** | ✅ Core + API | 5/5 core, 2/2 health tests pasando |
 | **Deploy** | ⚪ Pendiente | FASE 7 |
 
 ---
@@ -190,6 +191,115 @@ volatile: true
 - Endpoints de sesiones en API
 - Conexión dashboard ↔ API
 
+### 2026-07-04 — FASE 4: FSRS + Core + Práctica End-to-End
+
+**packages/core funcional:**
+- ✅ src/types/index.ts: tipos Arandil (User, Question, FSRSCard, ReviewRating, PracticeStats)
+  - SubjectArea type: algebra, geometry, calculus, trigonometry, statistics
+  - Sin universidad_objetivo, sin exam_target
+- ✅ src/fsrs/index.ts: wrapper ts-fsrs v5.0.2
+  - scheduleCard(): calcula próxima revisión
+  - newCard(): crea card FSRS inicial
+  - getDueCards(): filtra cards vencidas
+  - ratingToGrade(): convierte ratings user-friendly (again/hard/good/easy) a FSRS grades
+- ✅ src/__tests__/fsrs.test.ts: 5 tests pasando
+- ✅ Compilado con TypeScript strict: 0 errores
+
+**API endpoints práctica:**
+- ✅ GET /practice/next: obtiene siguiente card
+  - Si hay cards vencidas → devuelve la más antigua
+  - Si no hay vencidas → crea nueva card de question pool
+  - Si no hay más questions → mensaje "No more cards available"
+- ✅ POST /practice/review: recibe rating y actualiza FSRS
+  - Body: {card_id, rating, correct, response_time_ms}
+  - Rating: 'again' | 'hard' | 'good' | 'easy'
+  - Actualiza: difficulty, stability, due, state, reps, lapses
+  - Devuelve: next_review_in_days calculado
+- ✅ GET /practice/stats: métricas usuario
+  - total_cards, cards_due_today
+  - cards_new, cards_learning, cards_review, cards_relearning (por state)
+  - streak_days (TODO), accuracy_percent (TODO)
+
+**Migraciones DB:**
+- ✅ 003_fsrs_fields.sql: campos FSRS completos
+  - elapsed_days, scheduled_days, learning_steps, reps, lapses
+  - state ahora SMALLINT (0-3) como ts-fsrs espera
+  - Índices: idx_cards_user_due, idx_cards_state
+
+**Seed contenido inicial:**
+- ✅ seed-questions.sql: 10 preguntas matemáticas
+  - Álgebra: ecuaciones lineales (2), cuadráticas (1)
+  - Geometría: triángulos (1), áreas (1)
+  - Cálculo: derivadas (1), límites (1)
+  - Trigonometría: identidades (1), básico (1)
+  - Estadística: media (1)
+  - Todas con solution_steps
+
+**Mobile pantalla práctica:**
+- ✅ src/app/(tabs)/practice.tsx: pantalla completa
+  - Carga siguiente card (API /practice/next)
+  - Muestra stem + 5 opciones (topic badge, subtopic)
+  - Selección de respuesta
+  - Botón "Ver solución" → muestra solution_steps
+  - Feedback visual (verde/rojo según correcta)
+  - Rating FSRS con 4 botones (again/hard/good/easy)
+  - Submit review → carga siguiente automáticamente
+  - Loading states, empty state
+- ✅ src/services/api.ts: cliente con auth
+  - getAuthHeaders() usa Supabase session token
+  - getNextCard(), submitReview(), getPracticeStats()
+  - TypeScript types exportados
+
+**Navegación:**
+- ✅ (tabs)/_layout.tsx: tab Practicar agregada
+- ✅ (tabs)/index.tsx: CTA dashboard → router.push('/(tabs)/practice')
+
+**Verificación:**
+- ✅ pnpm install (ts-fsrs v5.0.2 instalado)
+- ✅ pnpm db:migrate (003_fsrs_fields aplicada)
+- ✅ seed aplicado (10 preguntas insertadas)
+- ✅ pnpm test --filter core (5/5 tests FSRS ✅)
+- ✅ pnpm test --filter api (2/2 health tests ✅)
+
+**Git:**
+- ✅ Commits: a3a21db (core + endpoints), cf44eda (mobile)
+- ✅ Push exitoso
+
+**Flujo end-to-end funcional:**
+1. Usuario login mobile ✅
+2. Dashboard → tap "Comenzar práctica" ✅
+3. API devuelve card + question (de seed o nueva) ✅
+4. Mobile muestra pregunta + opciones ✅
+5. Usuario selecciona respuesta ✅
+6. Tap "Ver solución" → muestra pasos ✅
+7. Usuario califica dificultad (again/hard/good/easy) ✅
+8. API actualiza FSRS scheduling ✅
+9. Mobile carga siguiente card automáticamente ✅
+
+**Integración ts-fsrs:**
+- newCard(): stability=0.3, difficulty=0.3, state=0 (New)
+- scheduleCard() con Rating.Good → state=1 (Learning), reps++
+- getDueCards() filtra por due <= NOW()
+- ratingToGrade() mapea strings a enum Rating
+
+**Reutilizado de Arandur:**
+- Estructura core/fsrs
+- Pattern toCard/fromCard (convierte NUMERIC strings a numbers)
+- Tests FSRS pattern
+
+**Adaptado para Arandil:**
+- Tipos sin universidad_objetivo, exam_target
+- SubjectArea global (no enums Perú)
+- Questions con topic/subtopic global
+- Practice stats sin métricas específicas de admisión
+
+**Pendiente para FASE 5:**
+- Onboarding matemáticas (nivel, área, objetivo)
+- IA generación de preguntas (DeepSeek)
+- Sesiones con mood tracking
+- Stats avanzados (streak, accuracy real)
+- Offline sync
+
 ---
 
 ## Pendientes Inmediatos
@@ -242,53 +352,66 @@ volatile: true
 - `b2a8c39` — feat: initial monorepo setup — base structure (2026-07-04)
 - `8f18cf1` — feat(FASE-2): API base funcional — Express + Auth + Migraciones (2026-07-04)
 - `6932fce` — feat(FASE-3): Mobile scaffold funcional — Expo + Auth + Dashboard (2026-07-04)
+- `a3a21db` — feat(FASE-4): packages/core + endpoints práctica + seed inicial (2026-07-04)
+- `cf44eda` — feat(FASE-4): Mobile práctica + integración API completa (2026-07-04)
 
 ---
 
 ## Métricas
 
-| Métrica | Valor | Target FASE 0+1+2+3 |
-|---------|-------|---------------------|
+| Métrica | Valor | Target FASE 0+1+2+3+4 |
+|---------|-------|----------------------|
 | Archivos obligatorios brain | 11/11 ✅ | 11/11 |
 | Frontmatter OKF válido | 11/11 (100%) ✅ | 100% |
 | Repos git inicializados | 2/2 ✅ | 2/2 |
-| Commits totales | 6 ✅ | 2+ |
+| Commits totales | 8 ✅ | 2+ |
 | Repos pusheados a GitHub | 2/2 ✅ | 2/2 |
 | Monorepo workspaces | 3 (mobile, api, core) ✅ | 3 |
 | Docker services | 2 (PostgreSQL, Redis) ✅ | 2 |
-| API routes | 1 (GET /health) ✅ | 1+ |
-| DB migrations | 2 (001_init, 002_subscriptions) ✅ | 2+ |
-| Tests pasando | 2/2 (health route) ✅ | 1+ |
+| API routes | 4 (health + 3 practice) ✅ | 1+ |
+| DB migrations | 3 (001_init, 002_subscriptions, 003_fsrs_fields) ✅ | 2+ |
+| Tests pasando | 7/7 (5 core FSRS + 2 health) ✅ | 1+ |
 | DB tablas | 8 (users, cards, sessions, questions, etc) ✅ | 5+ |
-| Mobile screens | 6 (sign-in, sign-up, dashboard, progress, profile, index) ✅ | 3+ |
+| Questions seed | 10 (matemáticas) ✅ | 5+ |
+| Mobile screens | 7 (+ practice) ✅ | 3+ |
 | Mobile routes (Expo Router) | 2 groups ((auth), (tabs)) ✅ | 2+ |
 | TypeScript errores mobile | 0 ✅ | 0 |
+| TypeScript errores core | 0 ✅ | 0 |
+| FSRS integrado | ts-fsrs v5.0.2 ✅ | v5+ |
+| Flujo end-to-end | práctica matemática funcional ✅ | funcional |
 
 ---
 
 ## Próximos Pasos
 
-### FASE 4 — FSRS + Core Algorithms (siguiente)
-1. Copiar `packages/core/` de Arandur
-2. Adaptar types (eliminar exam_target, universidad_objetivo)
-3. Agregar subject_focus, learningGoal a types
-4. Endpoints FSRS en API:
-   - POST /sessions (crear sesión)
-   - PATCH /fsrs (actualizar cards tras respuesta)
-   - GET /sessions/history
-5. Tests FSRS (algoritmo + endpoints)
-6. Conectar mobile con endpoints FSRS
-7. Commit + push
+### FASE 5 — Onboarding Matemáticas (siguiente)
+1. Crear onboarding flow en mobile (4 pantallas)
+2. Pantalla 1: Nivel (secundaria/preuniversitario/universitario)
+3. Pantalla 2: Área de enfoque (álgebra/geometría/cálculo/trigonometría/estadística)
+4. Pantalla 3: Objetivo de aprendizaje (texto libre)
+5. Pantalla 4: Minutos de estudio por día (slider)
+6. Guardar en user profile (subject_focus, learningGoal, study_minutes_day)
+7. Redirigir a dashboard tras completar
+8. Mostrar onboarding solo en primer login
 
-### FASE 5 — Onboarding Matemáticas
-1. Crear onboarding flow en mobile
-2. Pantalla 1: Nivel (secundaria/universitario)
-3. Pantalla 2: Área de enfoque (álgebra/geometría/cálculo)
-4. Pantalla 3: Objetivo de aprendizaje
-5. Guardar en user profile (subject_focus, learningGoal)
-6. Redirigir a dashboard tras completar
+### FASE 6 — IA Generación de Preguntas
+1. Integrar DeepSeek API (formato OpenAI-compatible)
+2. Endpoint POST /ai/generate-question con tema
+3. Prompt engineering para matemáticas
+4. Validación de pregunta generada
+5. Guardar en questions con approved=false
+6. Panel admin para revisar/aprobar
+7. Tests de generación
+
+### FASE 7 — Stats Avanzados + Sesiones
+1. POST /sessions/start (mood check-in)
+2. POST /sessions/complete (actualizar duration)
+3. Streak calculation real (días consecutivos)
+4. Accuracy percent real (session_responses)
+5. Dashboard stats reales (no placeholders)
+6. Progress charts (por topic, por día)
 
 ---
 
 **Última sesión:** 2026-07-04  
-**Próxima sesión:** FASE 4 — FSRS + Core Algorithms
+**Próxima sesión:** FASE 5 — Onboarding Matemáticas
