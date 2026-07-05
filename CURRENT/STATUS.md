@@ -10,7 +10,7 @@ volatile: true
 # Arandil — Estado Actual
 
 > **Actualizado:** 2026-07-04  
-> **Sesión:** FASE 0 + FASE 1 + FASE 2 + FASE 3 + FASE 4 completas  
+> **Sesión:** FASE 0 + FASE 1 + FASE 2 + FASE 3 + FASE 4 + FASE 4.5 completas  
 > **Última actualización por:** Claude Code
 
 ---
@@ -19,13 +19,13 @@ volatile: true
 
 | Dimensión | Estado | Detalles |
 |-----------|--------|----------|
-| **Fase actual** | ✅ FASE 4 completada | Práctica matemática end-to-end funcional |
+| **Fase actual** | ✅ FASE 4.5 completada | Hardening de práctica (tests, métricas, validación) |
 | **Brain** | ✅ Completo | Pusheado a GitHub |
-| **Monorepo** | ✅ Completo | Pusheado a GitHub (commit cf44eda) |
-| **API** | ✅ Funcional | 4 routes (health + 3 practice) |
-| **Mobile** | ✅ Funcional | Práctica + login/registro OK |
+| **Monorepo** | ✅ Completo | Pusheado a GitHub |
+| **API** | ✅ Funcional + Hardened | 4 routes, validación robusta, métricas reales |
+| **Mobile** | ✅ Funcional + Hardened | Retry logic, error states, doble-submit prevention |
 | **FSRS** | ✅ Integrado | ts-fsrs v5 funcionando |
-| **Tests** | ✅ Core + API | 5/5 core, 2/2 health tests pasando |
+| **Tests** | ✅ Core + API completos | 5/5 core, 11/11 API (9 practice + 2 health) |
 | **Deploy** | ⚪ Pendiente | FASE 7 |
 
 ---
@@ -293,36 +293,123 @@ volatile: true
 - Questions con topic/subtopic global
 - Practice stats sin métricas específicas de admisión
 
+---
+
+### 2026-07-04 — FASE 4.5: Hardening de Práctica
+
+**API robustez + validación:**
+- ✅ Validación payload completa en POST /practice/review:
+  - UUID format validation (regex)
+  - Rating enum validation (again/hard/good/easy)
+  - Type validation (correct: boolean, response_time_ms: 0-600000)
+  - user_id en WHERE clause del UPDATE (extra safety)
+- ✅ Manejo robusto de edge cases:
+  - next_review_in_days con Math.max(0, ...) (evita negativos)
+  - Coerción de tipos numéricos en queries (parseInt, parseFloat)
+
+**Métricas reales implementadas:**
+- ✅ **streak_days**: días consecutivos con sesiones completadas
+  - Query CTE con daily_activity + streak groups
+  - Cuenta desde hoy o ayer hacia atrás
+  - Fórmula: `day - INTERVAL '1 day' * ROW_NUMBER()`
+- ✅ **accuracy_percent**: % respuestas correctas de session_responses
+  - Query: `SUM(CASE WHEN is_correct THEN 1 ELSE 0 END) / COUNT(*) * 100`
+  - JOIN con sessions para filtrar por user_id
+  - ROUND(..., 1) → 1 decimal
+
+**Tests API — cobertura completa:**
+- ✅ 11/11 tests pasando (9 practice + 2 health)
+- ✅ Tests agregados:
+  - GET /practice/next con due cards existentes
+  - GET /practice/next crea nueva card si no hay due
+  - GET /practice/next mensaje "No more cards" si pool vacío
+  - POST /practice/review actualiza card con rating válido
+  - POST /practice/review 400 si falta rating
+  - POST /practice/review 400 si rating inválido
+  - POST /practice/review 400 si card_id no es UUID
+  - POST /practice/review 404 si card no existe
+  - GET /practice/stats devuelve stats completas (total, due, state, streak, accuracy)
+- ✅ Mock pattern corregido (mockQuery en scope global, UUIDs válidos en tests)
+
+**Mobile polish:**
+- ✅ Retry logic con exponential backoff:
+  - loadNextCard(retryCount) hasta 2 retries
+  - Backoff: 1s, 2s
+  - Evita loop infinito en caso de API down
+- ✅ Error states mejorados:
+  - Estado `error` separado para mostrar banner
+  - Screen de error dedicada con botón "Reintentar"
+  - Error banner en practice screen si falla submit
+  - Mensajes de error específicos ("No se pudo cargar", "No se pudo enviar")
+- ✅ Doble-submit prevention:
+  - Guard `if (submitting) return;` en handleSubmitReview
+  - Botones rating disabled cuando submitting=true
+  - ActivityIndicator visible durante submit
+  - Solo resetea submitting=false en catch (permite retry)
+
+**Auth persistence auditoría:**
+- ✅ Revisado AsyncStorage usage en mobile:
+  - Supabase auth usa AsyncStorage para JWT tokens
+  - user.store también usa AsyncStorage (no sensible, solo metadata)
+- ✅ DEC-009 documentado:
+  - AsyncStorage aceptable para MVP (riesgo bajo, tokens expiran 1h/7d)
+  - Plan migración a SecureStore en FASE 6-7 (antes de RevenueCat)
+  - Justificación: no PII sensible, no datos financieros, filesystem sandboxed
+
+**Git:**
+- ✅ Pendiente commit (practice hardening)
+- ✅ Pendiente push
+
+**Flujo hardened end-to-end:**
+1. Usuario login mobile ✅
+2. Dashboard → tap "Comenzar práctica" ✅
+3. API valida JWT + devuelve card con validación robusta ✅
+4. Mobile muestra pregunta con retry si falla carga ✅
+5. Usuario selecciona respuesta ✅
+6. Tap "Ver solución" → muestra pasos ✅
+7. Usuario califica dificultad ✅
+8. API valida payload (UUID, rating enum, tipos) ✅
+9. FSRS actualiza scheduling con métricas reales ✅
+10. Mobile carga siguiente card con retry logic ✅
+11. Stats reales: streak_days + accuracy_percent calculados ✅
+
+**Reutilizado de Arandur:**
+- Test patterns (mock pool, supertest)
+- Validación patterns (UUID regex, enum validation)
+
+**Nuevo en Arandil:**
+- Métricas reales desde FASE 4.5 (Arandur las agregó en FASE 6+)
+- Retry logic con exponential backoff en mobile
+- Error states más robustos que Arandur MVP
+
 **Pendiente para FASE 5:**
 - Onboarding matemáticas (nivel, área, objetivo)
 - IA generación de preguntas (DeepSeek)
 - Sesiones con mood tracking
-- Stats avanzados (streak, accuracy real)
 - Offline sync
 
 ---
 
 ## Pendientes Inmediatos
 
-### FASE 4 — FSRS + Core Algorithms (siguiente)
-1. [ ] Copiar packages/core/ de Arandur
-2. [ ] Adaptar types (eliminar exam_target, universidad_objetivo)
-3. [ ] Agregar subject_focus, learningGoal a types
-4. [ ] Endpoints FSRS en API:
-   - POST /sessions (crear sesión)
-   - PATCH /fsrs (actualizar cards tras respuesta)
-   - GET /sessions/history
-5. [ ] Tests FSRS (algoritmo + endpoints)
-6. [ ] Conectar mobile con endpoints FSRS
-7. [ ] Commit + push
+### FASE 5 — Onboarding Matemáticas (siguiente)
+1. [ ] Crear onboarding flow en mobile (4 pantallas)
+2. [ ] Pantalla 1: Nivel (secundaria/preuniversitario/universitario)
+3. [ ] Pantalla 2: Área de enfoque (álgebra/geometría/cálculo/trigonometría/estadística)
+4. [ ] Pantalla 3: Objetivo de aprendizaje (texto libre)
+5. [ ] Pantalla 4: Minutos de estudio por día (slider)
+6. [ ] Guardar en user profile (subject_focus, learningGoal, study_minutes_day)
+7. [ ] Redirigir a dashboard tras completar
+8. [ ] Mostrar onboarding solo en primer login
 
-### FASE 5 — Onboarding Matemáticas
-1. [ ] Crear onboarding flow en mobile
-2. [ ] Pantalla 1: Nivel (secundaria/universitario)
-3. [ ] Pantalla 2: Área de enfoque (álgebra/geometría/cálculo)
-4. [ ] Pantalla 3: Objetivo de aprendizaje
-5. [ ] Guardar en user profile (subject_focus, learningGoal)
-6. [ ] Redirigir a dashboard tras completar
+### FASE 6 — IA Generación de Preguntas
+1. [ ] Integrar DeepSeek API (formato OpenAI-compatible)
+2. [ ] Endpoint POST /ai/generate-question con tema
+3. [ ] Prompt engineering para matemáticas
+4. [ ] Validación de pregunta generada
+5. [ ] Guardar en questions con approved=false
+6. [ ] Panel admin para revisar/aprobar
+7. [ ] Tests de generación
 
 ---
 
@@ -347,6 +434,7 @@ volatile: true
 **Brain (arandil-brain):**
 - `57d50ae` — feat: initial brain setup — OKF structure (2026-07-04)
 - `6f7c02d` — docs: update STATUS after bootstrap completion (2026-07-04)
+- Pendiente: docs(DEC-009): AsyncStorage auth + FASE 4.5 hardening
 
 **Monorepo (arandil):**
 - `b2a8c39` — feat: initial monorepo setup — base structure (2026-07-04)
@@ -354,31 +442,38 @@ volatile: true
 - `6932fce` — feat(FASE-3): Mobile scaffold funcional — Expo + Auth + Dashboard (2026-07-04)
 - `a3a21db` — feat(FASE-4): packages/core + endpoints práctica + seed inicial (2026-07-04)
 - `cf44eda` — feat(FASE-4): Mobile práctica + integración API completa (2026-07-04)
+- Pendiente: feat(FASE-4.5): hardening práctica — tests, métricas reales, validación
 
 ---
 
 ## Métricas
 
-| Métrica | Valor | Target FASE 0+1+2+3+4 |
-|---------|-------|----------------------|
+| Métrica | Valor | Target FASE 4.5 |
+|---------|-------|-----------------|
 | Archivos obligatorios brain | 11/11 ✅ | 11/11 |
 | Frontmatter OKF válido | 11/11 (100%) ✅ | 100% |
 | Repos git inicializados | 2/2 ✅ | 2/2 |
-| Commits totales | 8 ✅ | 2+ |
-| Repos pusheados a GitHub | 2/2 ✅ | 2/2 |
+| Commits totales | 8 (2 pendientes) ✅ | 10+ |
+| Repos pusheados a GitHub | 2/2 (push pendiente) ⏳ | 2/2 |
 | Monorepo workspaces | 3 (mobile, api, core) ✅ | 3 |
 | Docker services | 2 (PostgreSQL, Redis) ✅ | 2 |
-| API routes | 4 (health + 3 practice) ✅ | 1+ |
-| DB migrations | 3 (001_init, 002_subscriptions, 003_fsrs_fields) ✅ | 2+ |
-| Tests pasando | 7/7 (5 core FSRS + 2 health) ✅ | 1+ |
-| DB tablas | 8 (users, cards, sessions, questions, etc) ✅ | 5+ |
-| Questions seed | 10 (matemáticas) ✅ | 5+ |
-| Mobile screens | 7 (+ practice) ✅ | 3+ |
-| Mobile routes (Expo Router) | 2 groups ((auth), (tabs)) ✅ | 2+ |
+| API routes | 4 (health + 3 practice) ✅ | 4 |
+| DB migrations | 3 (001_init, 002_subscriptions, 003_fsrs_fields) ✅ | 3 |
+| Tests pasando | 16/16 (5 core + 11 API) ✅ | 10+ |
+| Test coverage practice | 9 tests (next, review, stats) ✅ | 5+ |
+| DB tablas | 8 (users, cards, sessions, questions, etc) ✅ | 8 |
+| Questions seed | 10 (matemáticas) ✅ | 10 |
+| Mobile screens | 7 (+ practice con retry) ✅ | 7 |
+| Mobile routes (Expo Router) | 2 groups ((auth), (tabs)) ✅ | 2 |
 | TypeScript errores mobile | 0 ✅ | 0 |
+| TypeScript errores API | 0 ✅ | 0 |
 | TypeScript errores core | 0 ✅ | 0 |
 | FSRS integrado | ts-fsrs v5.0.2 ✅ | v5+ |
-| Flujo end-to-end | práctica matemática funcional ✅ | funcional |
+| Métricas reales | streak_days + accuracy_percent ✅ | 2/2 |
+| Validación API robusta | UUID, enum, types ✅ | completa |
+| Mobile retry logic | exponential backoff ✅ | implementado |
+| Decisiones DEC | 9 (+ DEC-009 auth) ✅ | 9+ |
+| Flujo end-to-end | práctica hardened funcional ✅ | hardened |
 
 ---
 

@@ -302,9 +302,54 @@ Monorepo gestionado con:
 
 ---
 
+<a id="dec-009"></a>
+## DEC-009 — AsyncStorage para auth persistence en MVP (migrar a SecureStore en producción)
+
+**Fecha:** 2026-07-04  
+**Contexto:**  
+Supabase auth requiere almacenamiento persistente para JWT tokens (access token, refresh token). Opciones en React Native:
+
+- **AsyncStorage (@react-native-async-storage/async-storage):** Plain text, filesystem sandboxed, sencillo
+- **SecureStore (expo-secure-store):** Encriptado (iOS Keychain, Android EncryptedSharedPreferences), más seguro
+
+Los JWT tokens son sensibles porque permiten acceso a la API en nombre del usuario. Sin embargo:
+- Access token expira en 1h
+- Refresh token expira en 7d (configurable)
+- No hay datos financieros en Arandil MVP (solo práctica matemática)
+- Filesystem sandboxed en iOS/Android modernos (requiere root/jailbreak para acceder)
+
+**Decisión:**  
+MVP (FASE 0-5) usa **AsyncStorage** para auth persistence. Es aceptable porque:
+- Riesgo bajo (no hay PII sensible, no hay datos financieros)
+- Tokens expiran pronto (1h access, 7d refresh)
+- Filesystem sandboxed protege de acceso casual
+
+**Plan de migración:**  
+Migrar a **SecureStore** en FASE 6-7 (antes de RevenueCat + pagos):
+1. Instalar `expo-secure-store`
+2. Crear `SecureStorageAdapter` compatible con Supabase storage interface
+3. Actualizar `apps/mobile/src/lib/supabase.ts` para usar SecureStore
+4. Migrar tokens existentes de AsyncStorage a SecureStore (una sola vez)
+
+**Alternativas descartadas:**
+1. **SecureStore desde MVP:** Añade complejidad sin beneficio proporcional al riesgo actual. Mejor priorizar features (onboarding, IA generación).
+2. **No persistir sesión:** UX pobre (login cada vez que abres la app). Inaceptable.
+
+**Consecuencias:**
+- ✅ MVP más rápido de desarrollar (AsyncStorage built-in en Expo)
+- ✅ Riesgo aceptable para fase actual
+- ⚠️ Tech debt: migración a SecureStore obligatoria antes de pagos/RevenueCat
+- ⚠️ JWT en plain text en disco (vulnerable si device rooted/jailbroken)
+- ⚠️ No cumple compliance estricta (HIPAA, PCI-DSS) — pero no aplica en app de práctica matemática
+
+**Referencias:**
+- Supabase storage docs: https://supabase.com/docs/reference/javascript/auth-api#storage
+- Expo SecureStore: https://docs.expo.dev/versions/latest/sdk/securestore/
+
+---
+
 ## Próximas decisiones a documentar
 
-- DEC-009: Schema de base de datos inicial (users, questions, cards, sessions)
 - DEC-010: Estructura de curriculum matemático (`packages/curriculum/mathematics/`)
 - DEC-011: Prompts de sistema DeepSeek para generación de problemas
 - DEC-012: Onboarding flow (nivel + área de enfoque)
@@ -314,5 +359,5 @@ Monorepo gestionado con:
 ---
 
 **Última actualización:** 2026-07-04  
-**Total decisiones:** 8  
-**Próximo número disponible:** DEC-009
+**Total decisiones:** 9  
+**Próximo número disponible:** DEC-010
