@@ -348,16 +348,50 @@ Migrar a **SecureStore** en FASE 6-7 (antes de RevenueCat + pagos):
 
 ---
 
+<a id="dec-010"></a>
+## DEC-010 — Onboarding wizard con estado en memoria + lazy user provisioning
+
+**Fecha:** 2026-07-04  
+**Contexto:**  
+FASE 5 requería un onboarding matemático real (4 pasos: nivel, objetivo, tiempo, tema) que se muestre solo en el primer login y bloquee el paso al dashboard hasta completarse. Dos problemas de diseño surgieron:
+
+1. **Dónde vive el estado del wizard mientras el usuario navega entre las 4 pantallas** (nivel → objetivo → tiempo → tema)
+2. **Qué pasa si el usuario abandona a mitad del flujo** (cierra la app en la pantalla 2 de 4)
+
+Además, durante la implementación se descubrió un gap pre-existente de FASE 2/3: no existía ninguna lógica que creara la fila en la tabla `users` cuando un usuario se registraba en Supabase Auth. Sin esa fila, `authMiddleware` devolvía 401 "User not found" en cualquier endpoint autenticado — lo cual habría roto el onboarding gate (y de hecho ya rompía silenciosamente `/practice/*` desde FASE 4 para cualquier usuario nuevo real).
+
+**Decisión:**
+
+1. **Estado del wizard en Zustand in-memory** (`onboarding.store.ts`), sin persistir a AsyncStorage. Los datos solo se escriben a la API (PATCH /user/profile) una sola vez, al completar el paso final (topic.tsx), con todos los campos juntos.
+   - Si el usuario abandona a mitad → `onboarding_completed` sigue en `false` en el servidor → el auth gate lo vuelve a mandar a `/(onboarding)/level` en el siguiente login → el wizard reinicia desde cero.
+   - Esto es "volver al flujo de forma coherente" (sin corrupción de datos, sin estados intermedios inválidos), no "resume exacto del paso donde quedó". Se documenta como trade-off aceptado por simplicidad.
+
+2. **Lazy user provisioning en `authMiddleware`:** si el `supabase_id` del JWT no tiene fila en `users`, se hace `INSERT ... ON CONFLICT DO UPDATE` en el primer request autenticado, con `onboarding_completed` naciendo en `false` por default de columna. Esto reemplaza (temporalmente) la necesidad de un trigger/webhook de Supabase Auth.
+
+**Alternativas descartadas:**
+1. **Persistir cada paso del wizard con PATCH incremental:** permite resume exacto, pero agrega 4 round-trips a la API en vez de 1, y complejiza el manejo de errores parciales (¿qué pasa si el PATCH del paso 2 falla pero el 3 no?). Descartado por complejidad desproporcionada al beneficio para un wizard de 4 pasos cortos.
+2. **Persistir wizard state en AsyncStorage:** permite resume sin red, pero duplica la fuente de verdad (local vs servidor) y requiere lógica de reconciliación. Descartado — el servidor (`onboarding_completed`) ya es la fuente de verdad suficiente.
+3. **Trigger de Supabase Auth (`on_auth_user_created`) para provisioning:** más correcto a largo plazo (provisioning inmediato, no depende del primer request autenticado), pero requiere configurar infraestructura en el dashboard de Supabase fuera de este repo. Pospuesto — lazy provisioning en middleware resuelve el bloqueo inmediato sin esa dependencia externa.
+
+**Consecuencias:**
+- ✅ Onboarding funcional con 1 sola llamada de red al completar (no 4)
+- ✅ Sin estados corruptos si el usuario abandona el flujo
+- ✅ Gap crítico de FASE 2/3 corregido (usuarios nuevos ya no reciben 401 en su primer request)
+- ⚠️ Si el usuario abandona a mitad, pierde el progreso del wizard (no hay resume real) — aceptable para un flujo de 4 pasos cortos
+- ⚠️ Lazy provisioning es un parche: el trigger de Supabase sigue pendiente para cuando se necesite provisioning inmediato (ej. antes de la primera llamada autenticada, para analytics de signup)
+
+---
+
 ## Próximas decisiones a documentar
 
-- DEC-010: Estructura de curriculum matemático (`packages/curriculum/mathematics/`)
-- DEC-011: Prompts de sistema DeepSeek para generación de problemas
-- DEC-012: Onboarding flow (nivel + área de enfoque)
-- DEC-013: Reportes a apoderado por WhatsApp (comandos y frecuencia)
-- DEC-014: Pricing regional (S/29 Perú, MXN 150 México, USD 8 resto)
+- DEC-011: Estructura de curriculum matemático (`packages/curriculum/mathematics/`)
+- DEC-012: Prompts de sistema DeepSeek para generación de problemas
+- DEC-013: Trigger Supabase Auth para user provisioning (reemplazar lazy insert de DEC-010)
+- DEC-014: Reportes a apoderado por WhatsApp (comandos y frecuencia)
+- DEC-015: Pricing regional (S/29 Perú, MXN 150 México, USD 8 resto)
 
 ---
 
 **Última actualización:** 2026-07-04  
-**Total decisiones:** 9  
-**Próximo número disponible:** DEC-010
+**Total decisiones:** 10  
+**Próximo número disponible:** DEC-011

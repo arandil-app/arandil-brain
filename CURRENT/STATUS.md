@@ -10,7 +10,7 @@ volatile: true
 # Arandil — Estado Actual
 
 > **Actualizado:** 2026-07-04  
-> **Sesión:** FASE 0 + FASE 1 + FASE 2 + FASE 3 + FASE 4 + FASE 4.5 completas  
+> **Sesión:** FASE 0 + FASE 1 + FASE 2 + FASE 3 + FASE 4 + FASE 4.5 + FASE 5 completas  
 > **Última actualización por:** Claude Code
 
 ---
@@ -19,14 +19,14 @@ volatile: true
 
 | Dimensión | Estado | Detalles |
 |-----------|--------|----------|
-| **Fase actual** | ✅ FASE 4.5 completada | Hardening de práctica (tests, métricas, validación) |
+| **Fase actual** | ✅ FASE 5 completada | Onboarding matemático real + personalización dashboard |
 | **Brain** | ✅ Completo | Pusheado a GitHub |
 | **Monorepo** | ✅ Completo | Pusheado a GitHub |
-| **API** | ✅ Funcional + Hardened | 4 routes, validación robusta, métricas reales |
-| **Mobile** | ✅ Funcional + Hardened | Retry logic, error states, doble-submit prevention |
+| **API** | ✅ Funcional + Hardened | 5 routes (health, practice×3, profile×2), validación robusta |
+| **Mobile** | ✅ Funcional + Onboarding | Wizard 4 pasos, auth gate condicional, dashboard personalizado |
 | **FSRS** | ✅ Integrado | ts-fsrs v5 funcionando |
-| **Tests** | ✅ Core + API completos | 5/5 core, 11/11 API (9 practice + 2 health) |
-| **Deploy** | ⚪ Pendiente | FASE 7 |
+| **Tests** | ✅ Core + API completos | 5/5 core, 21/21 API (9 practice + 10 profile + 2 health) |
+| **Deploy** | ⚪ Pendiente | FASE 8 (renumerado, ver ROADMAP.md nota) |
 
 ---
 
@@ -390,26 +390,147 @@ volatile: true
 
 ---
 
+### 2026-07-04 — FASE 5: Onboarding Matemáticas Real
+
+**Modelo de perfil extendido:**
+- ✅ Migración `004_onboarding_fields.sql`:
+  - `math_level VARCHAR(20)` — 'beginner' | 'intermediate' | 'advanced'
+  - `preferred_topic VARCHAR(100)` — tema inicial elegido en onboarding
+  - `onboarding_completed BOOLEAN NOT NULL DEFAULT false`
+  - Índice `idx_users_onboarding_completed` (query frecuente en auth gate)
+  - `subject_focus`, `learning_goal`, `study_minutes_day` ya existían desde 001_init.sql
+
+**API perfil/onboarding — nuevos endpoints:**
+- ✅ `GET /user/profile`: perfil completo del usuario autenticado
+  - Excluye `supabase_id` y `deleted_at` de la respuesta
+  - 404 si usuario no existe
+- ✅ `PATCH /user/profile`: update parcial (solo envía los campos que cambian)
+  - Validación `math_level` enum (beginner/intermediate/advanced)
+  - Validación `study_minutes_day` rango 5-180
+  - Validación `onboarding_completed` boolean estricto
+  - UPDATE dinámico (solo campos presentes en el body)
+  - User ownership: WHERE id = userId (del JWT, no del body)
+  - 400 si no se envía ningún campo
+
+**Bug crítico corregido — lazy user provisioning:**
+- 🔴 **Gap encontrado:** no existía lógica que creara la fila `users` al
+  registrarse en Supabase Auth. Cualquier usuario nuevo real recibía 401
+  "User not found" en el primer request a `/practice/*` o `/user/profile`
+  (bug latente desde FASE 2/3, nunca antes ejercitado con un signup real).
+- ✅ **Fix:** `authMiddleware` ahora hace `INSERT ... ON CONFLICT DO UPDATE`
+  sobre `users` si no encuentra el `supabase_id` — provisioning en el primer
+  request autenticado. `onboarding_completed` nace en `false` por default.
+- 📋 Documentado en [DEC-010](DECISIONS.md#dec-010). Pendiente: reemplazar
+  por trigger real de Supabase Auth (`on_auth_user_created`) en fase futura.
+
+**Mobile — wizard de onboarding (4 pantallas):**
+- ✅ `(onboarding)/_layout.tsx`: Stack sin gestos de swipe-back
+- ✅ `(onboarding)/level.tsx`: nivel matemático (3 opciones)
+- ✅ `(onboarding)/goal.tsx`: objetivo de aprendizaje (texto libre, opcional)
+- ✅ `(onboarding)/time.tsx`: minutos/día (15/30/45/60)
+- ✅ `(onboarding)/topic.tsx`: tema inicial (5 opciones) — paso final, hace
+  el único PATCH /user/profile con todos los datos + `onboarding_completed: true`
+- ✅ `components/OnboardingProgress.tsx`: barra de progreso (dots) reutilizable
+- ✅ `stores/onboarding.store.ts`: Zustand in-memory (NO persistido) para
+  pasar datos entre las 4 pantallas del wizard — ver [DEC-010](DECISIONS.md#dec-010)
+
+**Integración con navegación (auth gate):**
+- ✅ `app/index.tsx` extendido: tras verificar sesión Supabase, hace
+  `GET /user/profile` y decide:
+  - `onboarding_completed === false` → `router.replace('/(onboarding)/level')`
+  - `onboarding_completed === true` → `router.replace('/(tabs)')`
+  - Si falla el fetch de perfil (red) → fail-open a `/(tabs)` (no atrapa al
+    usuario en pantalla de carga infinita)
+- ✅ `(auth)/sign-in.tsx` corregido: ya no navega directo a `/(tabs)`, ahora
+  pasa por `/` (el auth gate) para que se evalúe onboarding_completed
+- ✅ Eliminados directorios vacíos leftover `app/auth/` y `app/tabs/`
+  (no-groups, sin archivos, resto de un scaffold anterior)
+
+**Personalización mínima real:**
+- ✅ Dashboard (`(tabs)/index.tsx`):
+  - CTA dinámico: "Practicar {Tema}" si hay `preferred_topic`, si no genérico
+  - Card "Enfoque actual" muestra `preferred_topic` + `study_minutes_day`
+  - Racha, cards, precisión ahora vienen de `getPracticeStats()` real (antes hardcoded a 0)
+- ✅ Perfil (`(tabs)/profile.tsx`): muestra tema preferido, nivel, objetivo, minutos/día
+- ✅ `GET /practice/next`: prioriza preguntas de `preferred_topic` sobre el resto
+  (`ORDER BY (q.topic = u.preferred_topic) DESC, RANDOM()`) cuando no hay due cards
+
+**Tests nuevos:**
+- ✅ `profile.test.ts`: 10 tests
+  - GET profile sin campos sensibles, 404 si no existe
+  - PATCH válido, 400 math_level inválido, 400 study_minutes_day fuera de rango (bajo/alto)
+  - 400 onboarding_completed no-boolean, 400 sin campos, 404 update sin usuario
+  - Scoping a userId autenticado (no confía en body)
+
+**Verificación real ejecutada:**
+- ✅ `pnpm test --filter core` → 5/5 ✅
+- ✅ `pnpm test --filter api` → 21/21 ✅ (9 practice + 10 profile + 2 health)
+- ✅ `pnpm lint` (mobile, tsc --noEmit) → 0 errores ✅
+- ✅ `pnpm db:migrate` → 004_onboarding_fields aplicada sobre DB real (docker) ✅
+- ⚠️ **Limitación documentada:** el proyecto Supabase configurado en `.env`
+  es un placeholder (`dummy-project.supabase.co`), no hay credenciales reales.
+  No fue posible generar un JWT real vía signup HTTP para probar el flujo
+  completo mobile↔API sobre la red. En su lugar se verificó la lógica de
+  negocio directamente contra Postgres real (docker), ejecutando el SQL
+  exacto de cada endpoint:
+  1. Insert simulando lazy-provision → `onboarding_completed = false` ✅
+  2. SELECT simulando `GET /user/profile` → confirma gate mandaría a onboarding ✅
+  3. UPDATE simulando `PATCH /user/profile` (submit final wizard) →
+     `onboarding_completed = true`, todos los campos guardados ✅
+  4. SELECT de "segundo login" → `onboarding_completed = true` → gate
+     mandaría directo a dashboard ✅
+  5. Query de `/practice/next` con `preferred_topic = 'calculus'` →
+     devuelve pregunta de cálculo antes que otros temas ✅
+  6. Cleanup del usuario de prueba ✅
+  - Esta verificación cubre la lógica SQL real (no mockeada) pero no
+    reemplaza una prueba real de la app mobile en un simulador/dispositivo.
+    Pendiente cuando exista un proyecto Supabase real configurado.
+
+**Git:**
+- Pendiente commit + push (ver sección Commits Recientes)
+
+**Flujo de decisión — documentado:**
+```
+Usuario autenticado (JWT válido)
+  │
+  ├─ GET /user/profile
+  │
+  ├─ onboarding_completed = false → /(onboarding)/level (wizard 4 pasos)
+  │     └─ completa wizard → PATCH /user/profile (onboarding_completed=true)
+  │           └─ router.replace('/(tabs)')
+  │
+  └─ onboarding_completed = true → /(tabs) directo (dashboard)
+```
+
+**Reutilizado de Arandur:**
+- Patrón de wizard multi-step (aunque Arandur lo usa para universidad/carrera)
+- Estructura de stores Zustand
+
+**Nuevo en Arandil (no existe en Arandur):**
+- Wizard con estado in-memory no persistido (decisión explícita, DEC-010)
+- Lazy user provisioning en middleware (Arandur usa trigger de Supabase)
+- Personalización de `/practice/next` por preferred_topic
+
+**Pendiente para FASE 6 (IA):**
+- Trigger real de Supabase Auth para provisioning (reemplazar lazy insert)
+- Proyecto Supabase real configurado (hoy es dummy) — bloquea pruebas E2E reales
+- DeepSeek API para generación de preguntas
+- Resume real del wizard si se persiste entre sesiones (hoy reinicia)
+
+---
+
 ## Pendientes Inmediatos
 
-### FASE 5 — Onboarding Matemáticas (siguiente)
-1. [ ] Crear onboarding flow en mobile (4 pantallas)
-2. [ ] Pantalla 1: Nivel (secundaria/preuniversitario/universitario)
-3. [ ] Pantalla 2: Área de enfoque (álgebra/geometría/cálculo/trigonometría/estadística)
-4. [ ] Pantalla 3: Objetivo de aprendizaje (texto libre)
-5. [ ] Pantalla 4: Minutos de estudio por día (slider)
-6. [ ] Guardar en user profile (subject_focus, learningGoal, study_minutes_day)
-7. [ ] Redirigir a dashboard tras completar
-8. [ ] Mostrar onboarding solo en primer login
-
-### FASE 6 — IA Generación de Preguntas
-1. [ ] Integrar DeepSeek API (formato OpenAI-compatible)
-2. [ ] Endpoint POST /ai/generate-question con tema
-3. [ ] Prompt engineering para matemáticas
-4. [ ] Validación de pregunta generada
-5. [ ] Guardar en questions con approved=false
-6. [ ] Panel admin para revisar/aprobar
-7. [ ] Tests de generación
+### FASE 6 — IA Generación de Preguntas (siguiente)
+1. [ ] Configurar proyecto Supabase real (hoy `.env` usa dummy-project.supabase.co)
+2. [ ] Trigger `on_auth_user_created` en Supabase (reemplaza lazy provisioning de DEC-010)
+3. [ ] Integrar DeepSeek API (formato OpenAI-compatible)
+4. [ ] Endpoint POST /ai/generate-question con tema
+5. [ ] Prompt engineering para matemáticas
+6. [ ] Validación de pregunta generada
+7. [ ] Guardar en questions con approved=false
+8. [ ] Panel admin para revisar/aprobar
+9. [ ] Tests de generación
 
 ---
 
@@ -425,7 +546,19 @@ volatile: true
 
 ## Alertas para Perplexity
 
-- Ninguna por ahora
+- ⚠️ **ARCHITECTURE.md excede el límite de ~15KB** del template (actualmente
+  ~21KB tras agregar la sección de Auth Gate + Onboarding). Sugerido: mover
+  el diagrama de componentes aspiracional (BKT/IRT/WhatsApp/DeepSeek, aún no
+  implementados) a ARCHIVE/ y dejar en CURRENT/ solo lo realmente construido.
+- ⚠️ **Proyecto Supabase real pendiente de configurar.** `.env` usa
+  `dummy-project.supabase.co` — bloquea pruebas E2E reales (signup → JWT →
+  llamadas autenticadas). FASE 5 se verificó a nivel de lógica SQL directa
+  contra Postgres (ver STATUS FASE 5), no a nivel de red real. Recomendado
+  resolver antes de FASE 6 (IA) para poder probar el flujo completo.
+- ⚠️ **ROADMAP.md tiene desviación de numeración de fases** desde que se
+  insertó "Onboarding" como FASE 5 propia (no estaba en el plan original).
+  Ver nota en ROADMAP.md. Sugerido: Perplexity decide si renumerar el
+  documento completo o mantener STATUS.md como fuente de verdad de fases.
 
 ---
 
@@ -434,7 +567,8 @@ volatile: true
 **Brain (arandil-brain):**
 - `57d50ae` — feat: initial brain setup — OKF structure (2026-07-04)
 - `6f7c02d` — docs: update STATUS after bootstrap completion (2026-07-04)
-- Pendiente: docs(DEC-009): AsyncStorage auth + FASE 4.5 hardening
+- `ec8ff8b` — docs(DEC-009): AsyncStorage auth + FASE 4.5 hardening (2026-07-04)
+- Pendiente: docs(DEC-010): onboarding wizard + lazy provisioning + FASE 5
 
 **Monorepo (arandil):**
 - `b2a8c39` — feat: initial monorepo setup — base structure (2026-07-04)
@@ -442,71 +576,67 @@ volatile: true
 - `6932fce` — feat(FASE-3): Mobile scaffold funcional — Expo + Auth + Dashboard (2026-07-04)
 - `a3a21db` — feat(FASE-4): packages/core + endpoints práctica + seed inicial (2026-07-04)
 - `cf44eda` — feat(FASE-4): Mobile práctica + integración API completa (2026-07-04)
-- Pendiente: feat(FASE-4.5): hardening práctica — tests, métricas reales, validación
+- `4db3107` — feat(FASE-4.5): hardening práctica — tests, métricas reales, validación (2026-07-04)
+- Pendiente: feat(FASE-5): onboarding matemático + profile API + lazy provisioning fix
 
 ---
 
 ## Métricas
 
-| Métrica | Valor | Target FASE 4.5 |
+| Métrica | Valor | Target FASE 5 |
 |---------|-------|-----------------|
 | Archivos obligatorios brain | 11/11 ✅ | 11/11 |
 | Frontmatter OKF válido | 11/11 (100%) ✅ | 100% |
 | Repos git inicializados | 2/2 ✅ | 2/2 |
-| Commits totales | 8 (2 pendientes) ✅ | 10+ |
+| Commits totales | 10 (2 pendientes) ✅ | 12+ |
 | Repos pusheados a GitHub | 2/2 (push pendiente) ⏳ | 2/2 |
 | Monorepo workspaces | 3 (mobile, api, core) ✅ | 3 |
 | Docker services | 2 (PostgreSQL, Redis) ✅ | 2 |
-| API routes | 4 (health + 3 practice) ✅ | 4 |
-| DB migrations | 3 (001_init, 002_subscriptions, 003_fsrs_fields) ✅ | 3 |
-| Tests pasando | 16/16 (5 core + 11 API) ✅ | 10+ |
+| API routes | 5 (health, practice×3, profile×2) ✅ | 5 |
+| DB migrations | 4 (001_init...004_onboarding_fields) ✅ | 4 |
+| Tests pasando | 26/26 (5 core + 21 API) ✅ | 15+ |
 | Test coverage practice | 9 tests (next, review, stats) ✅ | 5+ |
-| DB tablas | 8 (users, cards, sessions, questions, etc) ✅ | 8 |
+| Test coverage profile | 10 tests (get, patch, validaciones, ownership) ✅ | 5+ |
+| DB tablas | 8 (users +3 campos onboarding) ✅ | 8 |
 | Questions seed | 10 (matemáticas) ✅ | 10 |
-| Mobile screens | 7 (+ practice con retry) ✅ | 7 |
-| Mobile routes (Expo Router) | 2 groups ((auth), (tabs)) ✅ | 2 |
+| Mobile screens | 11 (7 + 4 onboarding) ✅ | 11 |
+| Mobile routes (Expo Router) | 3 groups ((auth), (tabs), (onboarding)) ✅ | 3 |
 | TypeScript errores mobile | 0 ✅ | 0 |
 | TypeScript errores API | 0 ✅ | 0 |
 | TypeScript errores core | 0 ✅ | 0 |
 | FSRS integrado | ts-fsrs v5.0.2 ✅ | v5+ |
-| Métricas reales | streak_days + accuracy_percent ✅ | 2/2 |
-| Validación API robusta | UUID, enum, types ✅ | completa |
-| Mobile retry logic | exponential backoff ✅ | implementado |
-| Decisiones DEC | 9 (+ DEC-009 auth) ✅ | 9+ |
-| Flujo end-to-end | práctica hardened funcional ✅ | hardened |
+| Onboarding wizard | 4 pasos, 1 PATCH final ✅ | funcional |
+| Auth gate condicional | onboarding vs dashboard ✅ | implementado |
+| Personalización dashboard | CTA + topic + stats reales ✅ | visible |
+| Bug crítico corregido | lazy user provisioning ✅ | 1 |
+| Decisiones DEC | 10 (+ DEC-010 onboarding) ✅ | 10+ |
+| Flujo end-to-end | verificado a nivel SQL (Supabase real pendiente) ⚠️ | parcial |
 
 ---
 
 ## Próximos Pasos
 
-### FASE 5 — Onboarding Matemáticas (siguiente)
-1. Crear onboarding flow en mobile (4 pantallas)
-2. Pantalla 1: Nivel (secundaria/preuniversitario/universitario)
-3. Pantalla 2: Área de enfoque (álgebra/geometría/cálculo/trigonometría/estadística)
-4. Pantalla 3: Objetivo de aprendizaje (texto libre)
-5. Pantalla 4: Minutos de estudio por día (slider)
-6. Guardar en user profile (subject_focus, learningGoal, study_minutes_day)
-7. Redirigir a dashboard tras completar
-8. Mostrar onboarding solo en primer login
-
-### FASE 6 — IA Generación de Preguntas
-1. Integrar DeepSeek API (formato OpenAI-compatible)
-2. Endpoint POST /ai/generate-question con tema
-3. Prompt engineering para matemáticas
-4. Validación de pregunta generada
-5. Guardar en questions con approved=false
-6. Panel admin para revisar/aprobar
-7. Tests de generación
+### FASE 6 — IA Generación de Preguntas (siguiente)
+1. Configurar proyecto Supabase real (desbloquea pruebas E2E reales con JWT)
+2. Trigger `on_auth_user_created` (reemplaza lazy provisioning, DEC-010)
+3. Integrar DeepSeek API (formato OpenAI-compatible)
+4. Endpoint POST /ai/generate-question con tema
+5. Prompt engineering para matemáticas
+6. Validación de pregunta generada
+7. Guardar en questions con approved=false
+8. Panel admin para revisar/aprobar
+9. Tests de generación
 
 ### FASE 7 — Stats Avanzados + Sesiones
 1. POST /sessions/start (mood check-in)
 2. POST /sessions/complete (actualizar duration)
-3. Streak calculation real (días consecutivos)
-4. Accuracy percent real (session_responses)
-5. Dashboard stats reales (no placeholders)
-6. Progress charts (por topic, por día)
+3. Dashboard stats con más detalle (charts por topic/día)
+4. Resume real del wizard de onboarding si se persiste entre sesiones
+
+### FASE 8 — Deploy Staging
+(ver [ROADMAP.md](ROADMAP.md) nota de desviación de numeración)
 
 ---
 
 **Última sesión:** 2026-07-04  
-**Próxima sesión:** FASE 5 — Onboarding Matemáticas
+**Próxima sesión:** FASE 6 — IA Generación de Preguntas (requiere Supabase real primero)

@@ -261,6 +261,64 @@ arandil-workspace/
        - Racha, temas, tiempo, problemas resueltos
 ```
 
+> ⚠️ El flujo anterior es la **visión aspiracional completa** (offline-first FSRS, modo socrático, WhatsApp). Lo realmente implementado a FASE 5 es más simple — ver sección siguiente.
+
+---
+
+## Auth Gate + Onboarding (implementado FASE 3-5)
+
+Flujo real actualmente en producción de código (`apps/mobile/src/app/index.tsx`):
+
+```
+1. App abre → pantalla index.tsx (auth gate, sin UI, solo lógica)
+   │
+   ├─→ supabase.auth.getSession()
+   │
+   ├─→ Sin sesión → router.replace('/(auth)/sign-in')
+   │
+   └─→ Con sesión:
+       │
+       ├─→ authMiddleware (API) — si es el primer request del usuario,
+       │   auto-provisiona row en `users` (lazy insert, sin trigger/webhook
+       │   de Supabase todavía). onboarding_completed nace en false.
+       │
+       ├─→ GET /user/profile
+       │
+       ├─→ profile.onboarding_completed === false
+       │   → router.replace('/(onboarding)/level')
+       │
+       └─→ profile.onboarding_completed === true
+           → router.replace('/(tabs)')  [dashboard]
+
+2. Onboarding — 4 pantallas en stack, sin gesture back (`(onboarding)/`):
+   level.tsx → goal.tsx → time.tsx → topic.tsx
+   │
+   ├─→ Estado del wizard vive en Zustand in-memory (onboarding.store.ts,
+   │   NO persistido) — si el usuario abandona a mitad y reabre la app,
+   │   el auth gate lo vuelve a mandar a /(onboarding)/level (reinicia el
+   │   wizard, no corrompe datos — ver DEC-010).
+   │
+   └─→ topic.tsx (paso final) hace UN solo PATCH /user/profile con:
+       { math_level, learning_goal, study_minutes_day, preferred_topic,
+         onboarding_completed: true }
+       → router.replace('/(tabs)')
+
+3. Dashboard personalizado con datos del onboarding:
+   - CTA: "Practicar {topicLabel}" en vez de genérico
+   - Card de "Enfoque actual" con preferred_topic + study_minutes_day
+   - GET /practice/next prioriza preguntas de preferred_topic
+     (ORDER BY (q.topic = u.preferred_topic) DESC, RANDOM())
+```
+
+**Endpoints involucrados:**
+- `GET /user/profile` — perfil completo (sin supabase_id/deleted_at)
+- `PATCH /user/profile` — update parcial, valida math_level enum,
+  study_minutes_day (5-180), onboarding_completed boolean
+
+**Pendiente (no implementado en FASE 5):**
+- Trigger/webhook real de Supabase para provisioning (hoy es lazy-insert en middleware)
+- Persistir progreso del wizard entre sesiones (hoy reinicia si se abandona)
+
 ---
 
 ## Mapa de Módulos Heredados vs Nuevos

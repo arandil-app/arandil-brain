@@ -12,7 +12,17 @@ refs:
 
 # Arandil — Roadmap y Fases
 
-> **Estado actual:** FASE 0 (Bootstrap) — creando estructura base del proyecto
+> **Estado actual:** FASE 5 (Onboarding Matemáticas) completada — 2026-07-04
+
+> ⚠️ **Nota de desviación (2026-07-04):** La ejecución real insertó una fase
+> "Onboarding Matemáticas" como FASE 5 propia (no contemplada como fase
+> separada en el plan original de abajo, donde FASE 5 = "IA Integration").
+> Esto corre en cascada: IA Integration pasa a ser FASE 6, MVP Completo a
+> FASE 7, Deploy Staging a FASE 8, etc. Ver [STATUS.md](STATUS.md) para el
+> estado real fase-por-fase. Las secciones `## FASE N` debajo reflejan el
+> plan original y no se renumeraron para preservar el detalle de tareas ya
+> escrito; usar STATUS.md como fuente de verdad de qué fase es cuál en la
+> práctica.
 
 ---
 
